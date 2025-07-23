@@ -1,0 +1,62 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.pyc
+*.pdm.toml
+*.pdm.lock
+
+# Virtual environments
+venv/
+.venv/
+backend/venv/
+backend/.venv/
+
+# Environment variables
+.env
+.env.*
+
+# SQLite DB
+*.db
+*.sqlite3
+
+# Jupyter Notebooks
+.ipynb_checkpoints
+
+# VSCode
+.vscode/
+
+# macOS
+.DS_Store
+
+# Node
+node_modules/
+frontend/node_modules/
+
+# Build output
+frontend/dist/
+frontend/build/
+
+# Log files
+*.log
+
+# Playwright
+playwright-report/
+
+# Coverage
+htmlcov/
+.coverage
+coverage.xml
+
+# Misc
+*.bak
+*.swp
+*.tmp
+
+# Ignore test cache
+.pytest_cache/
+
+# Ignore compiled JS/TS
+*.js.map
+*.tsbuildinfo 
