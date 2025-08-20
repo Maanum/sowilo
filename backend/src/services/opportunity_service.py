@@ -1,13 +1,13 @@
 from sqlalchemy.orm import Session
 from typing import List
-from backend.schemas import OpportunityCreate, Opportunity as OpportunitySchema
-from backend.models.opportunity import Opportunity, ALLOWED_STATUSES
-from backend.db.opportunity_dao import (
+from schemas import OpportunityCreate, Opportunity as OpportunitySchema
+from models.opportunity import Opportunity, ALLOWED_STATUSES
+from db.opportunity_dao import (
     create_opportunity,
     get_opportunities,
     delete_opportunity,
 )
-from backend.llm.job_description_parser import parse_opportunity_from_link
+from llm.job_description_parser import parse_opportunity_from_link
 
 class OpportunityService:
     @staticmethod

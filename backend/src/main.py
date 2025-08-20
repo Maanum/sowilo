@@ -1,10 +1,12 @@
+import models.opportunity  # Ensure model is imported
+import models.profile  # Ensure profile model is imported
+from config import settings
+from db.base import Base
+from db.session import engine
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from backend.routes.opportunities import router as opportunities_router
-from backend.db.base import Base
-from backend.db.session import engine
-from backend.config import settings
-import backend.models.opportunity  # Ensure model is imported
+from routes.opportunities import router as opportunities_router
+from routes.profile import router as profile_router
 
 app = FastAPI(title="Job Opportunities API")
 
@@ -18,15 +20,21 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
 @app.get("/")
 def health_check():
     return {"message": "Job Opportunities API"}
 
-app.include_router(opportunities_router, prefix="/opportunities", tags=["opportunities"])
+
+app.include_router(
+    opportunities_router, prefix="/opportunities", tags=["opportunities"]
+)
+app.include_router(profile_router, prefix="/profile", tags=["profile"])
 
 # Create tables on startup
 Base.metadata.create_all(bind=engine)
 
 if __name__ == "__main__":
     import uvicorn
+
     uvicorn.run(app, host="0.0.0.0", port=8000)

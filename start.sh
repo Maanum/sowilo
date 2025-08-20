@@ -12,10 +12,26 @@ cleanup() {
 # Set up signal handlers
 trap cleanup SIGINT SIGTERM
 
+# Check if virtual environment exists, create if not
+if [ ! -d "venv" ]; then
+    echo "📦 Creating virtual environment..."
+    python3 -m venv venv
+fi
+
+# Activate virtual environment
+echo "🔧 Activating virtual environment..."
+source venv/bin/activate
+
+# Install backend dependencies
+echo "📥 Installing backend dependencies..."
+cd backend
+pip install -r requirements.txt
+cd ..
+
 # Start backend
 echo "📡 Starting FastAPI backend..."
 cd backend
-python main.py &
+python -m uvicorn main:app --host 0.0.0.0 --port 8000 &
 BACKEND_PID=$!
 cd ..
 

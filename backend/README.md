@@ -1,70 +1,94 @@
-# Sowilo Backend (FastAPI)
+# Sowilo Backend
 
-A modular FastAPI backend for tracking job opportunities, with LLM enrichment, HTML parsing, and .env-based config.
+FastAPI backend for the Sowilo job opportunities tracker.
 
----
+## Setup
 
-## 🚀 Quick Start
+### Prerequisites
 
-1. **Install dependencies:**
+- Python 3.8+
+- pip
+
+### Installation
+
+1. **From monorepo root:**
+
    ```bash
-   python -m venv .venv
-   source .venv/bin/activate
+   npm run install:backend
+   ```
+
+2. **Or standalone:**
+   ```bash
+   cd backend
+   python3 -m venv venv
+   source venv/bin/activate  # On Windows: venv\Scripts\activate
    pip install -r requirements.txt
-   cp .env.example .env  # Edit as needed
    ```
-2. **Start the server:**
-   ```bash
-   uvicorn backend.main:app --reload
-   # or from project root:
-   ./dev.sh
-   ```
-3. **API docs:** http://localhost:8000/docs
 
----
+### Environment Variables
 
-## 🗂️ Structure
+Copy `.env.example` to `.env` and configure:
 
-- `main.py` — FastAPI entrypoint
-- `config.py` — Loads .env and settings
-- `models/` — SQLAlchemy models
-- `db/` — DB base, session, DAOs
-- `routes/` — APIRouters
-- `services/` — Business logic
-- `llm/` — LLM, scraping, enrichment
-- `.env.example` — Example config
+```bash
+cp .env.example .env
+```
 
----
+Required variables:
 
-## 🔑 Environment Variables
-- All config is via `.env` (see `.env.example`)
-- **Never commit real secrets!**
+- `DATABASE_URL`: Database connection string
+- `SECRET_KEY`: Secret key for security
+- `CORS_ORIGINS`: Comma-separated list of allowed origins
+- `OPENAI_API_KEY`: OpenAI API key for job parsing
 
----
+## Running
 
-## 🔧 Features
-- Modular, domain-driven structure
-- CRUD + enrichment endpoints (including `/opportunities/from-link`)
-- LLM integration (OpenAI, GPT, etc.)
-- HTML parsing (BeautifulSoup, Playwright ready)
-- CORS for frontend integration
-- Auto-generated API docs
+### Development
 
----
+**From monorepo root:**
 
-## 🧪 Dev & Tools
-- **Playwright**: For browser automation/scraping
-- **BeautifulSoup**: For HTML parsing
-- **OpenAI**: For LLM enrichment (set `OPENAI_API_KEY` in `.env`)
-- **dev.sh**: Starts both backend and frontend in parallel for development
+```bash
+npm run dev:backend
+```
 
----
+**Or standalone:**
 
-## 📚 Documentation
+```bash
+cd backend
+source venv/bin/activate
+python src/main.py
+```
+
+### Production
+
+```bash
+cd backend
+source venv/bin/activate
+uvicorn src.main:app --host 0.0.0.0 --port 8000
+```
+
+## API Documentation
+
+Once running, visit:
+
 - API docs: http://localhost:8000/docs
-- See main project README for full-stack info
+- ReDoc: http://localhost:8000/redoc
 
----
+## Project Structure
 
-## License
-MIT (or your choice) 
+```
+backend/
+├── src/
+│   ├── api/           # OpenAI client
+│   ├── config.py      # Configuration
+│   ├── db/           # Database models and DAOs
+│   ├── llm/          # LLM integration
+│   ├── main.py       # FastAPI app
+│   ├── models/       # SQLAlchemy models
+│   ├── routes/       # API routes
+│   ├── schemas.py    # Pydantic schemas
+│   ├── services/     # Business logic
+│   └── utils/        # Utilities
+├── requirements.txt
+├── .env.example
+└── README.md
+```

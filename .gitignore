@@ -1,3 +1,26 @@
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# IDE
+.cursor/
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Dependencies (let service-specific ignores handle these)
+# But include common patterns that might be at root
+node_modules/
+venv/
+
 # Python
 __pycache__/
 *.py[cod]
@@ -23,9 +46,6 @@ backend/.venv/
 
 # Jupyter Notebooks
 .ipynb_checkpoints
-
-# VSCode
-.vscode/
 
 # macOS
 .DS_Store

@@ -1,131 +1,192 @@
-# Sowilo: Job Opportunities Tracker
+# Sowilo - Job Opportunities Tracker
 
-A full-stack monorepo for tracking job opportunities, built with FastAPI (Python) and React (TypeScript).
+A modern job opportunities tracker built with FastAPI backend and React frontend, organized as a monorepo for efficient development and deployment.
 
----
-
-## 🏗️ Project Structure
+## 🏗️ Monorepo Structure
 
 ```
 sowilo/
-├── backend/           # FastAPI backend (modular, .env support)
-│   ├── main.py
-│   ├── config.py
+├── backend/           # FastAPI Python backend
+│   ├── src/          # Python source code
 │   ├── requirements.txt
 │   ├── .env.example
-│   ├── models/
-│   ├── db/
-│   ├── routes/
-│   ├── services/
-│   └── llm/
-├── frontend/          # React + Vite + Tailwind + shadcn/ui
-│   ├── src/
-│   ├── node_modules/
-│   └── package.json
-├── dev.sh             # Start both backend and frontend in dev mode
-├── start.sh           # (Optional) Start both for local prod
-└── .gitignore         # Ignores venv, node_modules, .env, etc.
+│   └── README.md
+├── frontend/          # React TypeScript frontend
+│   ├── src/          # React source code
+│   ├── package.json
+│   ├── .env.example
+│   └── README.md
+├── scripts/           # Development scripts
+├── .cursor/           # IDE configuration
+├── package.json       # Root orchestration
+└── README.md
 ```
-
----
 
 ## 🚀 Quick Start
 
-### 1. Backend Setup
+### Prerequisites
+
+- Node.js 18+
+- Python 3.8+
+- npm
+
+### Setup
+
+1. **Clone and setup:**
+
+   ```bash
+   git clone <repository-url>
+   cd sowilo
+   npm run setup
+   ```
+
+2. **Or use the setup script:**
+
+   ```bash
+   ./scripts/setup.sh
+   ```
+
+3. **Start development:**
+   ```bash
+   npm run dev
+   ```
+
+## 🛠️ Development
+
+### Running Services
+
+**Both services together:**
+
+```bash
+npm run dev
+```
+
+**Backend only:**
+
+```bash
+npm run dev:backend
+```
+
+**Frontend only:**
+
+```bash
+npm run dev:frontend
+```
+
+**Or use the dev script:**
+
+```bash
+./scripts/dev.sh
+```
+
+### Service URLs
+
+- **Frontend**: http://localhost:5173
+- **Backend API**: http://localhost:8000
+- **API Docs**: http://localhost:8000/docs
+
+## 📦 Service Independence
+
+Each service can be developed and deployed independently:
+
+### Backend (FastAPI)
+
+- **Location**: `./backend/`
+- **Entry point**: `backend/src/main.py`
+- **Dependencies**: `backend/requirements.txt`
+- **Environment**: `backend/.env`
+
+### Frontend (React)
+
+- **Location**: `./frontend/`
+- **Entry point**: `frontend/src/main.tsx`
+- **Dependencies**: `frontend/package.json`
+- **Environment**: `frontend/.env`
+
+## 🔧 Available Scripts
+
+### Root Level
+
+- `npm run dev` - Start both services
+- `npm run setup` - Install all dependencies
+- `npm run install` - Install all dependencies
+- `npm run lint` - Lint frontend code
+
+### Backend
+
+- `npm run dev:backend` - Start backend only
+- `npm run install:backend` - Install Python dependencies
+
+### Frontend
+
+- `npm run dev:frontend` - Start frontend only
+- `npm run install:frontend` - Install Node dependencies
+- `npm run lint:frontend` - Lint frontend code
+- `npm run type-check` - TypeScript type checking
+
+## 🌍 Environment Configuration
+
+### Backend Environment
+
+Copy `backend/.env.example` to `backend/.env`:
 
 ```bash
 cd backend
-python -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-cp .env.example .env  # Edit as needed
+cp .env.example .env
+# Edit .env with your configuration
 ```
 
-- Start backend (from project root):
-  ```bash
-  uvicorn backend.main:app --reload
-  # or
-  ./dev.sh
-  ```
-- API: http://localhost:8000
-- Docs: http://localhost:8000/docs
+### Frontend Environment
 
-### 2. Frontend Setup
+Copy `frontend/.env.example` to `frontend/.env`:
 
 ```bash
 cd frontend
-npm install
-npm run dev
+cp .env.example .env
+# Edit .env with your configuration
 ```
-- App: http://localhost:5173
 
----
+## 🚀 Deployment
 
-## 🛠️ Features
+Each service can be deployed independently:
 
-### Backend (FastAPI)
-- Modular, domain-driven structure (models, db, services, routes, llm)
-- Environment config via `.env` (see `.env.example`)
-- SQLite (default), but supports any SQLAlchemy DB
-- CRUD + enrichment endpoints (including `/opportunities/from-link`)
-- LLM integration (OpenAI, GPT, etc.)
-- HTML parsing (BeautifulSoup, Playwright ready)
-- CORS for frontend integration
-- Auto-generated API docs
+### Backend Deployment
 
-### Frontend (React + Vite)
-- Modern React 18 + TypeScript
-- Tailwind CSS + shadcn/ui for beautiful UI
-- Dark mode toggle
-- Responsive, mobile-first design
-- Add opportunities via URL (enrichment) or manual entry
-- Axios for API calls
+```bash
+cd backend
+pip install -r requirements.txt
+uvicorn src.main:app --host 0.0.0.0 --port 8000
+```
 
----
+### Frontend Deployment
 
-## 🔧 API Endpoints (Key)
-- `GET /opportunities` — List all opportunities
-- `POST /opportunities` — Create a new opportunity (manual)
-- `POST /opportunities/from-link` — Create from job posting URL (enrichment)
-- `DELETE /opportunities/{id}` — Delete an opportunity
-
----
-
-## 📊 Data Model
-- `title` (required)
-- `company` (required)
-- `level`, `min_salary`, `max_salary`, `posting_link`, `resume_link`, `cover_letter_link`, `status` (optional)
-
----
-
-## 🔒 Environment & Secrets
-- All backend config is via `.env` (see `backend/.env.example`)
-- **Never commit real secrets!**
-- Add `.env` to your `.gitignore` (already done)
-
----
-
-## 🧪 Testing & Dev Tools
-- **Playwright**: For browser automation/scraping (see backend requirements)
-- **BeautifulSoup**: For HTML parsing
-- **OpenAI**: For LLM enrichment (set `OPENAI_API_KEY` in `.env`)
-- **dev.sh**: Starts both backend and frontend in parallel for development
-
----
-
-## 📝 Contributing & Next Steps
-- Add more LLM enrichers or scraping logic
-- Add user authentication
-- Add search/filtering, status tracking, etc.
-- Add tests in `backend/tests/` and `frontend/src/__tests__/`
-
----
+```bash
+cd frontend
+npm run build
+# Deploy the dist/ folder to your hosting service
+```
 
 ## 📚 Documentation
-- Backend: http://localhost:8000/docs
-- Frontend: See code and README in `frontend/`
 
----
+- [Backend Documentation](./backend/README.md)
+- [Frontend Documentation](./frontend/README.md)
+- [API Documentation](http://localhost:8000/docs) (when running)
 
-## License
-MIT (or your choice) 
+## 🛠️ Development Workflow
+
+1. **Feature Development**: Work in the appropriate service directory
+2. **Testing**: Each service can be tested independently
+3. **Integration**: Use `npm run dev` to test full-stack integration
+4. **Deployment**: Deploy services separately or together
+
+## 🤝 Contributing
+
+1. Fork the repository
+2. Create a feature branch
+3. Make changes in the appropriate service directory
+4. Test both services independently and together
+5. Submit a pull request
+
+## 📄 License
+
+MIT License - see LICENSE file for details

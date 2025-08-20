@@ -1,10 +1,10 @@
 from sqlalchemy.orm import Session
 from typing import List
-from backend.models.opportunity import Opportunity
-from backend.schemas import OpportunityCreate
+from models.opportunity import Opportunity
+from schemas import OpportunityCreate
 
 def create_opportunity(db: Session, opportunity: OpportunityCreate) -> Opportunity:
-    db_opportunity = Opportunity(**opportunity.dict())
+    db_opportunity = Opportunity(**opportunity.model_dump())
     db.add(db_opportunity)
     db.commit()
     db.refresh(db_opportunity)

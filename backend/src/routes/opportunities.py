@@ -3,9 +3,9 @@ from sqlalchemy.orm import Session
 from typing import List
 from pydantic import BaseModel
 
-from backend.schemas import OpportunityCreate, Opportunity as OpportunitySchema
-from backend.db.session import get_db
-from backend.services.opportunity_service import OpportunityService
+from schemas import OpportunityCreate, Opportunity as OpportunitySchema
+from db.session import get_db
+from services.opportunity_service import OpportunityService
 
 router = APIRouter()
 
