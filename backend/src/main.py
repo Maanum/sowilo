@@ -14,10 +14,10 @@ from routes.profile import router as profile_router
 app = FastAPI(title="Job Opportunities API")
 
 # Configure CORS
-origins = [origin.strip() for origin in settings.CORS_ORIGINS.split(",")]
+origins = [origin.strip() for origin in settings.CORS_ORIGINS.split(",") if origin.strip()]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Allow all origins for development
+    allow_origins=origins,  # explicit list because allow_credentials=True
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
