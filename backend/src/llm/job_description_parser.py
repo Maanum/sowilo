@@ -1,6 +1,6 @@
 from api.openai_client import gpt_chat_complete
 from schemas import OpportunityCreate
-from utils.web_scraping import fetch_and_extract_text_sync
+from utils.web_scraping import fetch_and_extract_text
 
 SYSTEM_PROMPT = """
 You are a job parser. Given raw text from a job posting, extract structured information
@@ -19,8 +19,8 @@ If salary is not found, leave it null. If level is not clear, leave it null.
 """
 
 
-def parse_opportunity_from_link(link: str) -> OpportunityCreate:
-    job_description_content = fetch_and_extract_text_sync(link)
+async def parse_opportunity_from_link_async(link: str) -> OpportunityCreate:
+    job_description_content = await fetch_and_extract_text(link)
 
     gpt_response = gpt_chat_complete(
         messages=[

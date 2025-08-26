@@ -13,7 +13,8 @@ class Settings(BaseSettings):
     DATABASE_URL: str = os.getenv("DATABASE_URL", "sqlite:///./opportunities.db")
     SECRET_KEY: str = os.getenv("SECRET_KEY", "changeme")
     CORS_ORIGINS: str = os.getenv(
-        "CORS_ORIGINS", "http://localhost:3000,http://localhost:5173"
+        "CORS_ORIGINS",
+        "http://localhost:3000,http://localhost:5173,http://localhost:5174,http://127.0.0.1:5173,http://127.0.0.1:5174",
     )
     OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY", "")
 
