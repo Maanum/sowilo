@@ -95,6 +95,9 @@ export function Opportunities() {
   const [assessments, setAssessments] = useState<
     Record<number, JobAssessmentType | null>
   >({});
+  const [assessmentsGenerating, setAssessmentsGenerating] = useState<
+    Set<number>
+  >(new Set());
   const [expandedOpportunities, setExpandedOpportunities] = useState<
     Set<number>
   >(new Set());
@@ -137,6 +140,46 @@ export function Opportunities() {
         ...prev,
         [opportunityId]: null,
       }));
+    }
+  };
+
+  const fetchAssessmentWithRetry = async (opportunityId: number, maxRetries: number = 5, delay: number = 3000) => {
+    // Mark as generating
+    setAssessmentsGenerating(prev => new Set(Array.from(prev).concat([opportunityId])));
+    
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        const assessment = await assessmentApi.getOpportunityAssessment(
+          opportunityId
+        );
+        setAssessments(prev => ({
+          ...prev,
+          [opportunityId]: assessment,
+        }));
+        // Remove from generating set
+        setAssessmentsGenerating(prev => {
+          const newSet = new Set(prev);
+          newSet.delete(opportunityId);
+          return newSet;
+        });
+        return; // Success, exit the retry loop
+      } catch (error) {
+        if (attempt === maxRetries) {
+          // Final attempt failed, set to null and remove from generating
+          setAssessments(prev => ({
+            ...prev,
+            [opportunityId]: null,
+          }));
+          setAssessmentsGenerating(prev => {
+            const newSet = new Set(prev);
+            newSet.delete(opportunityId);
+            return newSet;
+          });
+        } else {
+          // Wait before next retry
+          await new Promise(resolve => setTimeout(resolve, delay));
+        }
+      }
     }
   };
 
@@ -213,8 +256,8 @@ export function Opportunities() {
       );
       setOpportunities(prev => [...prev, response.data]);
 
-      // Fetch assessment for the new opportunity
-      await fetchAssessment(response.data.id);
+      // Fetch assessment for the new opportunity with retry logic
+      fetchAssessmentWithRetry(response.data.id);
 
       setUrlInput('');
       setIsDialogOpen(false);
@@ -248,8 +291,8 @@ export function Opportunities() {
       );
       setOpportunities(prev => [...prev, response.data]);
 
-      // Fetch assessment for the new opportunity
-      await fetchAssessment(response.data.id);
+      // Fetch assessment for the new opportunity with retry logic
+      fetchAssessmentWithRetry(response.data.id);
 
       setFormData({
         title: '',
@@ -551,6 +594,7 @@ export function Opportunities() {
               {opportunities.map(opportunity => {
                 const isExpanded = expandedOpportunities.has(opportunity.id);
                 const assessment = assessments[opportunity.id];
+                const isGenerating = assessmentsGenerating.has(opportunity.id);
 
                 return (
                   <Card
@@ -581,6 +625,13 @@ export function Opportunities() {
                                 handleFitScoreClick(opportunity.id)
                               }
                             />
+                          ) : isGenerating ? (
+                            <div className="flex items-center gap-2">
+                              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary"></div>
+                              <span className="text-xs text-gray-500">
+                                Generating assessment...
+                              </span>
+                            </div>
                           ) : (
                             <div className="flex items-center gap-1">
                               <GenerateAssessmentButton
@@ -735,6 +786,18 @@ export function Opportunities() {
                                 ).toLocaleDateString()}
                               </span>
                             </div>
+                          </div>
+                        ) : isGenerating ? (
+                          <div className="text-center py-4">
+                            <div className="flex items-center justify-center gap-2 mb-3">
+                              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary"></div>
+                              <p className="text-sm text-gray-500">
+                                Generating assessment...
+                              </p>
+                            </div>
+                            <p className="text-xs text-gray-400">
+                              This may take a few seconds
+                            </p>
                           </div>
                         ) : (
                           <div className="text-center py-4">

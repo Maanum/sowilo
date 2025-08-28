@@ -1,4 +1,5 @@
 # Import models to ensure they are registered with SQLAlchemy
+import models.assessment
 import models.job_assessment
 import models.opportunity
 import models.profile

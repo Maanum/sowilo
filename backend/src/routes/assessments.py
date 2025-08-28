@@ -7,7 +7,7 @@ from models.opportunity import Opportunity
 from models.profile import Profile
 from schemas import JobAssessment as JobAssessmentSchema
 from schemas import JobAssessmentCreate
-from services.assessment_service import AssessmentService
+from services.job_assessment_service import AssessmentService
 from sqlalchemy.orm import Session, joinedload
 
 router = APIRouter(tags=["assessments"])

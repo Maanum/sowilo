@@ -1,7 +1,14 @@
 from sqlalchemy.orm import Session
-from typing import List
+from typing import List, Optional
 from models.opportunity import Opportunity
 from schemas import OpportunityCreate
+
+
+class OpportunityDAO:
+    @staticmethod
+    def get_by_id(db: Session, opportunity_id: int) -> Optional[Opportunity]:
+        """Get opportunity by ID"""
+        return db.query(Opportunity).filter(Opportunity.id == opportunity_id).first()
 
 def create_opportunity(db: Session, opportunity: OpportunityCreate) -> Opportunity:
     db_opportunity = Opportunity(**opportunity.model_dump())

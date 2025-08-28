@@ -1,227 +1,148 @@
-import re
-from typing import Any, Dict, Optional
-
-import openai
-from config import settings
-from models.job_assessment import JobAssessment
-from models.opportunity import Opportunity
-from models.profile import Profile
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
+from db.session import SessionLocal
+from db.assessment_dao import AssessmentDAO
+from db.opportunity_dao import OpportunityDAO
+from models.job_assessment import JobAssessment
+from models.profile import Profile
+from api.openai_client import gpt_chat_complete
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class AssessmentService:
-    def __init__(self, openai_client=None):
-        self.client = openai_client or openai.OpenAI(api_key=settings.OPENAI_API_KEY)
-
-    def assess_opportunity(
-        self, opportunity: Opportunity, profile: Profile, db: Session
-    ) -> JobAssessment:
-        """Generate AI assessment of opportunity fit for profile"""
-
-        # Check if assessment already exists for this opportunity
-        existing = (
-            db.query(JobAssessment)
-            .filter(JobAssessment.opportunity_id == opportunity.id)
-            .first()
-        )
-
-        # Generate new assessment
-        prompt = self._build_assessment_prompt(opportunity, profile)
+    @staticmethod
+    def generate_for_opportunity(db_factory=SessionLocal, opportunity_id: int = None, kind: str = "initial") -> None:
+        """
+        Background-safe entrypoint. Opens its own session from db_factory.
+        1) Upsert a row with status 'pending' (respect unique(opportunity_id, kind)).
+        2) Fetch opportunity + any needed context (JD text, company, etc.).
+        3) Call LLM parser/generator as needed.
+        4) Persist summary/details and set status='succeeded' or 'failed'.
+        """
+        if opportunity_id is None:
+            logger.error("generate_for_opportunity called without opportunity_id")
+            return
 
         try:
-            response = self.client.chat.completions.create(
-                model="gpt-4o-mini",  # Use cost-effective model
-                messages=[
-                    {
-                        "role": "system",
-                        "content": "You are an expert career counselor and recruiter. Provide honest, actionable job fit assessments.",
-                    },
-                    {"role": "user", "content": prompt},
-                ],
-                temperature=0.1,
-                max_tokens=500,
-            )
+            with db_factory() as db:
+                # idempotency check / upsert 'pending'
+                assessment = AssessmentDAO.get_by_opportunity_and_kind(db, opportunity_id, kind)
+                if assessment and assessment.status == "succeeded":
+                    logger.info(f"Assessment already exists for opportunity {opportunity_id}, kind {kind}")
+                    return
+                    
+                if not assessment:
+                    try:
+                        assessment = AssessmentDAO.create(db, opportunity_id=opportunity_id, kind=kind, status="pending")
+                        db.commit()
+                        db.refresh(assessment)
+                        logger.info(f"Created pending assessment for opportunity {opportunity_id}")
+                    except IntegrityError:
+                        db.rollback()
+                        assessment = AssessmentDAO.get_by_opportunity_and_kind(db, opportunity_id, kind)
+                        if assessment and assessment.status == "succeeded":
+                            logger.info(f"Assessment already exists (concurrent creation) for opportunity {opportunity_id}")
+                            return
 
-            assessment_data = self._parse_assessment_response(
-                response.choices[0].message.content
-            )
+                # fetch opportunity context
+                opp = OpportunityDAO.get_by_id(db, opportunity_id)
+                if not opp:
+                    logger.error(f"Opportunity {opportunity_id} not found")
+                    AssessmentDAO.update_status(db, assessment.id, "failed", message="Opportunity missing")
+                    db.commit()
+                    return
 
-            if existing:
-                # Update existing assessment
-                existing.profile_id = profile.id
-                existing.profile_version = profile.version
-                existing.summary_of_fit = assessment_data["summary"]
-                existing.fit_score = assessment_data["score"]
-                existing.recommendation = assessment_data["recommendation"]
-                # updated_at will be automatically set by SQLAlchemy
+                # Build input text (title, company, description, link, etc.)
+                input_text = AssessmentDAO.build_input_text_from_opportunity(opp)
+                logger.info(f"Generating assessment for opportunity {opportunity_id}")
+
+                # Call LLM to generate assessment summary
+                summary = AssessmentService._make_assessment(input_text)
+
+                AssessmentDAO.update_success(db, assessment.id, summary=summary)
+                
+                # Also create a JobAssessment for backward compatibility
+                AssessmentService._create_job_assessment(db, opp, summary)
+                
                 db.commit()
-                db.refresh(existing)
-                return existing
-            else:
-                # Create new assessment
-                assessment = JobAssessment(
-                    opportunity_id=opportunity.id,
-                    profile_id=profile.id,
-                    profile_version=profile.version,
-                    summary_of_fit=assessment_data["summary"],
-                    fit_score=assessment_data["score"],
-                    recommendation=assessment_data["recommendation"],
-                )
-                return assessment
-
+                logger.info(f"Successfully generated assessment for opportunity {opportunity_id}")
+                
         except Exception as e:
-            # Fallback assessment if AI fails
-            fallback_assessment = JobAssessment(
+            logger.exception(f"Assessment generation failed for opportunity {opportunity_id}: {e}")
+            try:
+                with db_factory() as db:
+                    a = AssessmentDAO.get_by_opportunity_and_kind(db, opportunity_id, kind)
+                    if a:
+                        AssessmentDAO.update_status(db, a.id, "failed", message=str(e))
+                        db.commit()
+            except Exception:
+                logger.exception("Failed to record assessment failure status")
+
+    @staticmethod
+    def _make_assessment(input_text: str) -> str:
+        """Generate an initial assessment summary using LLM"""
+        try:
+            system_prompt = """
+You are a career advisor analyzing job opportunities. 
+Given job posting information, provide a concise initial assessment focusing on:
+1. What makes this role appealing or concerning
+2. Key requirements and qualifications needed
+3. Potential career growth opportunities
+4. Any red flags or notable aspects
+
+Keep the assessment informative but concise (2-3 paragraphs maximum).
+"""
+            
+            user_prompt = f"""
+Analyze this job opportunity and provide an initial assessment:
+
+{input_text}
+"""
+            
+            messages = [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt}
+            ]
+            
+            response = gpt_chat_complete(messages=messages, model="gpt-4o-mini")
+            return response.strip()
+            
+        except Exception as e:
+            logger.warning(f"LLM assessment failed: {e}")
+            return f"Initial assessment could not be generated automatically. Manual review recommended for this opportunity. Error: {str(e)}"
+
+    @staticmethod
+    def _create_job_assessment(db: Session, opportunity, summary: str):
+        """Create a JobAssessment record for backward compatibility"""
+        try:
+            # Check if JobAssessment already exists
+            existing = db.query(JobAssessment).filter(JobAssessment.opportunity_id == opportunity.id).first()
+            if existing:
+                logger.info(f"JobAssessment already exists for opportunity {opportunity.id}")
+                return
+            
+            # Get or create default profile
+            profile = db.query(Profile).filter(Profile.user_id == "default").first()
+            if not profile:
+                profile = Profile(user_id="default")
+                db.add(profile)
+                db.flush()  # Get ID without committing
+            
+            # Create JobAssessment with default values
+            job_assessment = JobAssessment(
                 opportunity_id=opportunity.id,
                 profile_id=profile.id,
                 profile_version=profile.version,
-                summary_of_fit="Assessment could not be generated automatically. Manual review recommended.",
-                fit_score=4,
-                recommendation="Review this opportunity manually to determine fit.",
+                summary_of_fit=summary,
+                fit_score=4,  # Default neutral score
+                recommendation="Initial assessment generated. Consider reviewing opportunity details and fit."
             )
-
-            if existing:
-                # Update existing assessment with fallback
-                existing.profile_id = profile.id
-                existing.profile_version = profile.version
-                existing.summary_of_fit = fallback_assessment.summary_of_fit
-                existing.fit_score = fallback_assessment.fit_score
-                existing.recommendation = fallback_assessment.recommendation
-                db.commit()
-                db.refresh(existing)
-                return existing
-            else:
-                return fallback_assessment
-
-    def get_assessment_for_opportunity(
-        self, opportunity_id: int, db: Session
-    ) -> Optional[JobAssessment]:
-        """Get the single assessment for an opportunity"""
-        return (
-            db.query(JobAssessment)
-            .filter(JobAssessment.opportunity_id == opportunity_id)
-            .first()
-        )
-
-    def _build_assessment_prompt(
-        self, opportunity: Opportunity, profile: Profile
-    ) -> str:
-        # Extract profile data from JSON entries
-        entries = profile.get_entries()
-
-        # Organize profile data by type
-        personal_info = []
-        experience_entries = []
-        education_entries = []
-        skills_entries = []
-
-        for entry in entries:
-            entry_type = entry.get("type", "")
-            if entry_type == "personal":
-                personal_info.append(entry)
-            elif entry_type == "experience":
-                experience_entries.append(entry)
-            elif entry_type == "education":
-                education_entries.append(entry)
-            elif "skills" in entry_type.lower():
-                skills_entries.append(entry)
-
-        # Format experience
-        experience_text = ""
-        for exp in experience_entries:
-            title = exp.get("title", "")
-            org = exp.get("organization", "")
-            start_date = exp.get("start_date", "")
-            end_date = exp.get("end_date", "")
-            notes = exp.get("key_notes", [])
-
-            experience_text += f"- {title} at {org} ({start_date} to {end_date})\n"
-            for note in notes:
-                experience_text += f"  • {note}\n"
-            experience_text += "\n"
-
-        # Format skills
-        skills_text = ""
-        for skill_entry in skills_entries:
-            notes = skill_entry.get("key_notes", [])
-            skills_text += ", ".join(notes)
-
-        # Format education
-        education_text = ""
-        for edu in education_entries:
-            title = edu.get("title", "")
-            org = edu.get("organization", "")
-            education_text += f"- {title} from {org}\n"
-
-        # Format personal info
-        personal_text = ""
-        for personal in personal_info:
-            notes = personal.get("key_notes", [])
-            personal_text = " ".join(notes)
-
-        return f"""
-Assess job fit for this opportunity and candidate profile:
-
-OPPORTUNITY:
-Title: {opportunity.title}
-Company: {opportunity.company}
-Level: {opportunity.level or "Not specified"}
-Salary Range: {opportunity.min_salary or "Not specified"} - {opportunity.max_salary or "Not specified"}
-
-CANDIDATE PROFILE:
-Personal Summary: {personal_text}
-
-Experience:
-{experience_text}
-
-Skills: {skills_text}
-
-Education:
-{education_text}
-
-Provide assessment in this EXACT format:
-
-SUMMARY OF FIT:
-[2-3 sentences on how well the role matches skills, experience, and career goals. Highlight key strengths and any potential gaps.]
-
-FIT SCORE: [Single integer 1-7 where 1=poor fit, 7=excellent fit]
-
-RECOMMENDATION:
-[1-2 sentences with actionable recommendation like "Strong candidate - prioritize application" or "Consider if no better options available"]
-        """
-
-    def _parse_assessment_response(self, response: str) -> Dict[str, Any]:
-        """Parse structured AI response into components"""
-
-        # Default values
-        summary = "Assessment parsing failed - manual review needed."
-        score = 4
-        recommendation = "Manual review recommended."
-
-        try:
-            # Extract summary
-            summary_match = re.search(
-                r"SUMMARY OF FIT:\s*(.+?)(?=FIT SCORE:|$)",
-                response,
-                re.DOTALL | re.IGNORECASE,
-            )
-            if summary_match:
-                summary = summary_match.group(1).strip()
-
-            # Extract score
-            score_match = re.search(r"FIT SCORE:\s*(\d+)", response, re.IGNORECASE)
-            if score_match:
-                score = int(score_match.group(1))
-                score = max(1, min(7, score))  # Ensure 1-7 range
-
-            # Extract recommendation
-            rec_match = re.search(
-                r"RECOMMENDATION:\s*(.+?)$", response, re.DOTALL | re.IGNORECASE
-            )
-            if rec_match:
-                recommendation = rec_match.group(1).strip()
-
+            
+            db.add(job_assessment)
+            logger.info(f"Created JobAssessment for opportunity {opportunity.id}")
+            
         except Exception as e:
-            print(f"Error parsing assessment response: {e}")
-
-        return {"summary": summary, "score": score, "recommendation": recommendation}
+            logger.warning(f"Failed to create JobAssessment for opportunity {opportunity.id}: {e}")
+            # Don't raise - this is a fallback system
